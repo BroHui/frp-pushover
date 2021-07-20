@@ -1,0 +1,18 @@
+#POST http://localhost:8100/handler
+POST http://vm:8081/handler
+Content-Type: application/json
+
+{
+    "version": "0.1.0",
+    "op": "NewUserConn",
+    "content": {
+        "user": {
+            "user": "demo",
+            "metas": {},
+            "run_id": "1234"
+        },
+      "proxy_name": "demo_name",
+      "proxy_type": "demo_type",
+      "remote_addr": "8.8.8.8"
+    }
+}
