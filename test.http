@@ -1,4 +1,3 @@
-#POST http://localhost:8100/handler
 POST http://vm:8081/handler
 Content-Type: application/json
 
