@@ -12,7 +12,6 @@ RUN pip install -U pip \
 
 FROM python:3.8-slim
 ENV PYTHONUNBUFFERED 1
-COPY . /usr/src/app
 WORKDIR /usr/src/app
 COPY --from=base /wheels /wheels
 COPY --from=base /usr/lib/x86_64-linux-gnu/libmariadb.so.3 /usr/lib/x86_64-linux-gnu/
@@ -20,5 +19,6 @@ RUN pip install -U pip \
 	&& pip install -f /wheels -r /wheels/requirements.txt \
 	&& rm -rf /wheels \
 	&& rm -rf /root/.cache/pip/*
+COPY . /usr/src/app
 EXPOSE 8080 8081
 CMD ["uwsgi", "--ini", "uwsgi.ini"]
