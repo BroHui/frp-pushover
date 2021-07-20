@@ -28,6 +28,10 @@ def send_text(msg):
         return -3
     except http.client.HTTPException as e:
         print('request error')
+    except ConnectionResetError as e:
+        print('ConnectionResetError')
+    except Exception as e:
+        print('Exception on connect request to pushover.net')
     else:
         try:
             resp = conn.getresponse()
