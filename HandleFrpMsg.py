@@ -20,11 +20,6 @@ BANNED_HOUR = 1
 def ip_check(ip):
     """ 防骚扰规则配置 """
     global conn_event_cached, banned_ip
-    # 勿打扰时间
-    d = datetime.datetime.now()
-    if d.hour in [23, 24, 0, 1, 2 ,3 ,4, 5, 6]:  # 睡觉时间不能连接，没有为什么
-        return False
-
     # 在ban列表中，并且没有关满1小时的
     if ip in banned_ip:
         banned_ts = conn_event_cached.get(ip, 0)
@@ -158,8 +153,17 @@ def newuserconn_operation(data):
     """
     run_id = data['user']['run_id']
     ip = data['remote_addr'].split(':')[0]
-    # 是否允许连接
-    is_allow = ip_check(ip)
+    # 勿打扰时间
+    banned = 0  # ban标记
+    d = datetime.now()
+    if d.hour in [23, 24, 0, 1, 2 ,3 ,4, 5, 6]:  # 睡觉时间不能连接，没有为什么
+        is_allow = False
+        banned = 1
+    else:
+        # 是否允许连接
+        is_allow = ip_check(ip)
+        if ip in banned_ip:
+            banned = 1
     is_allow_txt = '放行' if is_allow else '拒绝'
 
     # 用户地理位置
@@ -170,7 +174,7 @@ def newuserconn_operation(data):
         run_id, data['proxy_name'], data['proxy_type'], timestamp_to_str(data['timestamp']),
         data['remote_addr'], position, is_allow_txt
     )
-    return txt, is_allow
+    return txt, is_allow, banned
 
 
 # 处理NewWorkConn操作
@@ -247,6 +251,7 @@ def handle_msg(data):
     # 是否允许用户ssh连接
     is_allowed = True
     # Ping操作每隔30s发送一次，不记录
+    banned = 0
     if operation == 'Ping':
         return ping_operation(content)
     elif operation == 'Login':
@@ -255,13 +260,13 @@ def handle_msg(data):
         txt = newproxy_operation(content)
     elif operation == 'NewUserConn':
         content['timestamp'] = int(time.time())
-        txt, is_allowed = newuserconn_operation(content)
+        txt, is_allowed, banned = newuserconn_operation(content)
     elif operation == 'NewWorkConn':
         txt, is_allowed = newworkconn_operation(content)
     else:
         # 基本不会出现此情况
         return True
     # pushover 推送
-    if is_allowed:
+    if not banned:
         send_text(txt)
     return is_allowed
