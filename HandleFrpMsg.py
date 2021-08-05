@@ -9,20 +9,57 @@ import logging
 import time
 
 from pushover import send_text
-
-SSH_IP_MODE = "no"
+from qqwry import QQwry
 
 logging = logging.getLogger('runserver.handlefrpmsg')
 
-
+CONN_LIMIT_SEC = 10
+conn_event_cached = {}
+banned_ip = []
+BANNED_HOUR = 1
 def ip_check(ip):
-    """ 未实现 """
-    return True
+    """ 防骚扰规则配置 """
+    global conn_event_cached, banned_ip
+    # 勿打扰时间
+    d = datetime.datetime.now()
+    if d.hour in [23, 24, 0, 1, 2 ,3 ,4, 5, 6]:  # 睡觉时间不能连接，没有为什么
+        return False
+
+    # 在ban列表中，并且没有关满1小时的
+    if ip in banned_ip:
+        banned_ts = conn_event_cached.get(ip, 0)
+        if (time.time() - banned_ts) > (3600 * BANNED_HOUR):  # 放出小黑屋
+            banned_ip.remove(ip)
+            return True
+        else:
+            return False  # 继续关
+
+    # 10秒内有两次连接的，ban
+    cur_ts = time.time()
+    if ip not in conn_event_cached:  # 首次访问，通过
+        conn_event_cached[ip] = cur_ts
+        return True
+
+    last_conn_ts = conn_event_cached.get(ip, 0) 
+    
+    if (cur_ts - last_conn_ts) < CONN_LIMIT_SEC:
+        if ip not in banned_ip:
+            banned_ip.append(ip)
+        return False
+    else:
+        return True  # 放行
 
 
 def ip2geo(ip):
-    """ 未实现 """
-    return ip
+    """ 采用纯真库 """
+    try:
+        q = QQwry()
+        q.load_file('QQWry.Dat')
+        geo = ' '.join(q.lookup(ip))
+    except Exception:
+        geo = 'QQwry lookup failed.'
+
+    return geo
 
 
 # 格式化时间戳
@@ -122,16 +159,16 @@ def newuserconn_operation(data):
     run_id = data['user']['run_id']
     ip = data['remote_addr'].split(':')[0]
     # 是否允许连接
-    if SSH_IP_MODE == 'no':
-        is_allow = True
-    else:
-        is_allow = ip_check(ip)
+    is_allow = ip_check(ip)
+    is_allow_txt = '放行' if is_allow else '拒绝'
+
     # 用户地理位置
     position = ip2geo(ip)
+
     str_fmt = "用户连接内网机器\n内网主机ID：{}\n代理名称：{}\n代理类型：{}\n登录时间：{}\n用户IP和端口：{}\n用户位置：{}\n允许用户连接：{}"
     txt = str_fmt.format(
         run_id, data['proxy_name'], data['proxy_type'], timestamp_to_str(data['timestamp']),
-        data['remote_addr'], position, is_allow
+        data['remote_addr'], position, is_allow_txt
     )
     return txt, is_allow
 
@@ -225,5 +262,6 @@ def handle_msg(data):
         # 基本不会出现此情况
         return True
     # pushover 推送
-    send_text(txt)
+    if is_allowed:
+        send_text(txt)
     return is_allowed
