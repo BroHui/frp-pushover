@@ -19,6 +19,8 @@ RUN pip install -U pip \
 	&& pip install -f /wheels -r /wheels/requirements.txt \
 	&& rm -rf /wheels \
 	&& rm -rf /root/.cache/pip/*
+ENV TZ=Asia/Hong_Kong
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 COPY . /usr/src/app
 EXPOSE 8080 8081
 CMD ["uwsgi", "--ini", "uwsgi.ini"]
