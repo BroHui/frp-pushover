@@ -13,35 +13,46 @@ from qqwry import QQwry
 
 logging = logging.getLogger('runserver.handlefrpmsg')
 
-CONN_LIMIT_SEC = 10
+CONN_LIMIT_SEC = 20
 conn_event_cached = {}
 banned_ip = []
 BANNED_HOUR = 1
 def ip_check(ip):
     """ 防骚扰规则配置 """
     global conn_event_cached, banned_ip
+    print(conn_event_cached)
+    print(banned_ip)
+    cur_ts = time.time()
     # 在ban列表中，并且没有关满1小时的
     if ip in banned_ip:
         banned_ts = conn_event_cached.get(ip, 0)
-        if (time.time() - banned_ts) > (3600 * BANNED_HOUR):  # 放出小黑屋
+        logging.info("ip {} in banned list, last ban time is {}".format(ip, banned_ts))
+        if (cur_ts - banned_ts) > (3600 * BANNED_HOUR):  # 放出小黑屋
             banned_ip.remove(ip)
+            conn_event_cached[ip] = cur_ts
+            logging.info("ip {} release from banned.".format(ip))
             return True
         else:
+            logging.info("ip {} keep banned".format(ip))
             return False  # 继续关
 
-    # 10秒内有两次连接的，ban
-    cur_ts = time.time()
+    # N秒内有两次连接的，ban
     if ip not in conn_event_cached:  # 首次访问，通过
         conn_event_cached[ip] = cur_ts
+        logging.info("ip {} is first touch, pass".format(ip))
         return True
 
     last_conn_ts = conn_event_cached.get(ip, 0) 
     
     if (cur_ts - last_conn_ts) < CONN_LIMIT_SEC:
+        logging.info("ip {} access limited".format(ip))
         if ip not in banned_ip:
             banned_ip.append(ip)
+            logging.info("ip {} join the banned list".format(ip))
+            conn_event_cached[ip] = cur_ts
         return False
     else:
+        logging.info("normal access, let it {} go".format(ip))
         return True  # 放行
 
 
@@ -161,9 +172,12 @@ def newuserconn_operation(data):
         banned = 1
     else:
         # 是否允许连接
-        is_allow = ip_check(ip)
-        if ip in banned_ip:
+        if ip in banned_ip:  # 预先判断是否被ban
             banned = 1
+        is_allow = ip_check(ip)
+        if is_allow:
+            banned = 0  # 如果allow则banned设置掉，还是要显示的
+        
     is_allow_txt = '放行' if is_allow else '拒绝'
 
     # 用户地理位置
